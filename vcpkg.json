@@ -1,0 +1,12 @@
+{
+  "name": "sourcepawn-debugger",
+  "version-string": "0.1.0",
+  "builtin-baseline": "36de5f9de5eceee418b77e0b9df023e6ab77533a",
+  "dependencies": [
+    "nlohmann-json",
+    "fmt",
+    "brynet",
+    "gtest",
+    "zlib"
+  ]
+}
