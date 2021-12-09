@@ -888,8 +888,7 @@ public:
 	}
 
 	void RecvCmd(const char *buffer, size_t len) {
-		CUtlBuffer buf(buffer, len);
-
+		CUtlBuffer buf((void*)buffer, len, CUtlBuffer::READ_ONLY);
 		while (buf.TellGet() < len) {
 			int msg_len = buf.GetUnsignedInt();
 			int type = buf.GetUnsignedChar();
