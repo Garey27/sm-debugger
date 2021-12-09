@@ -1,0 +1,15 @@
+[submodule "dep/sourcemod"]
+	path = dep/sourcemod
+	url = https://github.com/alliedmodders/sourcemod
+[submodule "dep/certify"]
+	path = dep/certify
+	url = https://github.com/djarek/certify
+[submodule "dep/vcpkg"]
+	path = dep/vcpkg
+	url = https://github.com/microsoft/vcpkg
+[submodule "dep/metamod-source"]
+	path = dep/metamod-source
+	url = https://github.com/alliedmodders/metamod-source
+[submodule "dep/hl2sdk"]
+	path = dep/hl2sdk
+	url = https://github.com/alliedmodders/hl2sdk
