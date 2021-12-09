@@ -12,8 +12,8 @@
 #define SMEXT_CONF_DATESTRING	__DATE__
 
 #define SMEXT_LINK(name) SDKExtension *g_pExtensionIface = name;
-#define META_NO_HL2SDK
-#define SMEXT_CONF_METAMOD
+//#define META_NO_HL2SDK
+//#define SMEXT_CONF_METAMOD
 
 #define SMEXT_ENABLE_FORWARDSYS
 #define SMEXT_ENABLE_HANDLESYS

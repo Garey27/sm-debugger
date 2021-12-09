@@ -2,12 +2,10 @@
 #include "extension.h"
 #include <string>
 #include <thread>
-
+#include <fmt/format.h>
 
 Extension g_zr;
 SMEXT_LINK(&g_zr);
-
-ICvar* icvar = NULL;
 
 #ifndef _WIN32
 #define GetProcAddress dlsym
@@ -43,18 +41,17 @@ bool Inited = false;
 
 extern DebugReport DebugListener;
 
-ConVar sm_debugger_port("sm_debugger_port", "12345", FCVAR_ARCHIVE | FCVAR_PROTECTED, "SourceMod Debugger Port.");
-ConVar sm_debugger_timeout("sm_debugger_wait", "10.0", FCVAR_ARCHIVE | FCVAR_PROTECTED, "Wait n secs to connect to debugger.");
-
+uint16_t sm_debugger_port = 12345;
+float sm_debugger_delay = 0.f;
 int SM_Debugger_port()
 {
-	return sm_debugger_port.GetInt();
+	return sm_debugger_port;
 }
 float SM_Debugger_timeout()
 {
-	return sm_debugger_timeout.GetFloat();
+	return sm_debugger_delay;
 }
-
+/*
 
 bool Extension::SDK_OnMetamodLoad(ISmmAPI* ismm, char* error, size_t maxlen, bool late) {
 	GET_V_IFACE_CURRENT(GetEngineFactory, icvar, ICvar, CVAR_INTERFACE_VERSION);
@@ -67,14 +64,59 @@ bool Extension::SDK_OnMetamodLoad(ISmmAPI* ismm, char* error, size_t maxlen, boo
 
 	return true;
 }
-
+*/
 
 bool Extension::SDK_OnLoad(char *error, size_t maxlen, bool late) {
 	ISourcePawnFactory *factory = nullptr;
 	GetSourcePawnFactoryFn factoryFn = nullptr;
 	ISourcePawnEnvironment *current_env = nullptr;
 	std::string modulename = "sourcepawn.jit.x86.";
+	const char* debugPort = g_pSM->GetCoreConfigValue("DebuggerPort");
+	const char* debugDelay = g_pSM->GetCoreConfigValue("DebuggerWaitTime");
+	if(debugPort && debugPort[0])
+	{
+		try
+		{
+			sm_debugger_port = std::stoi(debugPort);
+		}
+		catch (std::invalid_argument& e) {
+			fmt::print("Can't convert DebuggerPort from core.cfg. Invalid argument: [%s]\n", debugPort);
+		}
+		catch (std::out_of_range& e) {
+			fmt::print("Can't convert DebuggerPort from core.cfg. unsigned short is out of range! [%s]\n", debugPort);
+		}
+		catch (...) {
+			fmt::print("Can't convert DebuggerPort from core.cfg. unknown problem! [%s]\n", debugPort);
+			// everything else
+		}
+		
+	}
+	else
+	{
 
+		fmt::print("[SM_DEBUGGER] DebuggerPort is not exists in core.cfg. Setting default port 12345.\n");
+	}
+	if (debugDelay && debugDelay[0])
+	{
+		try
+		{
+			sm_debugger_delay = std::stof(debugPort);
+		}
+		catch (std::invalid_argument& e) {
+			fmt::print("Can't convert DebuggerWaitTime from core.cfg. Invalid argument: [%s]\n", debugDelay);
+		}
+		catch (std::out_of_range& e) {
+			fmt::print("Can't convert DebuggerWaitTime from core.cfg. unsigned short is out of range! [%s]\n", debugDelay);
+		}
+		catch (...) {
+			fmt::print("Can't convert DebuggerWaitTime from core.cfg. unknown problem! [%s]\n", debugDelay);
+			// everything else
+		}
+	}
+	else
+	{
+		fmt::print("[SM_DEBUGGER] DebuggerWaitTime is not exists in core.cfg. Setting default delay 0.\n");		
+	}
 	modulename += PLATFORM_LIB_EXT;
 	auto module = GetModuleHandle(modulename.c_str());
 	if (module) {
@@ -131,7 +173,8 @@ void Extension::SDK_OnPauseChange(bool paused) {
 
 void Extension::SDK_OnDependenciesDropped() {
 }
-
+/*
 bool Extension::RegisterConCommandBase(ConCommandBase* pVar) {
 	return META_REGCVAR(pVar);
 }
+*/

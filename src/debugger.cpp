@@ -10,7 +10,7 @@
 #include <string.h>
 #include <time.h>
 #include <vector>
-#include <utlbuffer.h>
+#include "utlbuffer.h"
 #include <fstream>
 #include <map>
 #include <mutex>
@@ -888,7 +888,7 @@ public:
 	}
 
 	void RecvCmd(const char *buffer, size_t len) {
-		CUtlBuffer buf((void*)buffer, len, CUtlBuffer::READ_ONLY);
+		CUtlBuffer buf((void*)buffer, len);
 		while (buf.TellGet() < len) {
 			int msg_len = buf.GetUnsignedInt();
 			int type = buf.GetUnsignedChar();
