@@ -10,8 +10,7 @@
 #include <string.h>
 #include <time.h>
 #include <vector>
-#include "utlbuffer.h"
-#include "utlmemory.h"
+#include <utlbuffer.h>
 #include <fstream>
 #include <map>
 #include <mutex>
@@ -1002,7 +1001,7 @@ void debugThread() {
 			{[](TcpSocket &socket) { socket.setNodelay(); }})
 		.WithMaxRecvBufferSize(1024 * 1024)
 		.AddEnterCallback(enterCallback)
-		.WithAddr(false, "0.0.0.0", 1234)
+		.WithAddr(false, "0.0.0.0", SM_Debugger_port())
 		.asyncRun();
 
 	while (true) {

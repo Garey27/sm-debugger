@@ -7,6 +7,8 @@
 Extension g_zr;
 SMEXT_LINK(&g_zr);
 
+ICvar* icvar = NULL;
+
 #ifndef _WIN32
 #define GetProcAddress dlsym
 // Linux doesn't have this function so this emulates its functionality
@@ -41,8 +43,8 @@ bool Inited = false;
 
 extern DebugReport DebugListener;
 
-/*ConVar sm_debugger_port("sm_debugger_port", "12345", 0, "SourceMod Debugger Port.");
-//ConVar sm_debugger_timeout("sm_debugger_wait", "10.0", 0, "Wait n secs to connect to debugger.");
+ConVar sm_debugger_port("sm_debugger_port", "12345", FCVAR_ARCHIVE | FCVAR_PROTECTED, "SourceMod Debugger Port.");
+ConVar sm_debugger_timeout("sm_debugger_wait", "10.0", FCVAR_ARCHIVE | FCVAR_PROTECTED, "Wait n secs to connect to debugger.");
 
 int SM_Debugger_port()
 {
@@ -51,7 +53,21 @@ int SM_Debugger_port()
 float SM_Debugger_timeout()
 {
 	return sm_debugger_timeout.GetFloat();
-}*/
+}
+
+
+bool Extension::SDK_OnMetamodLoad(ISmmAPI* ismm, char* error, size_t maxlen, bool late) {
+	GET_V_IFACE_CURRENT(GetEngineFactory, icvar, ICvar, CVAR_INTERFACE_VERSION);
+#if SOURCE_ENGINE >= SE_ORANGEBOX
+	g_pCVar = icvar;
+	ConVar_Register(0, this);
+#else
+	ConCommandBaseMgr::OneTimeInit(this);
+#endif
+
+	return true;
+}
+
 
 bool Extension::SDK_OnLoad(char *error, size_t maxlen, bool late) {
 	ISourcePawnFactory *factory = nullptr;
@@ -79,7 +95,7 @@ bool Extension::SDK_OnLoad(char *error, size_t maxlen, bool late) {
 		current_env->EnableDebugBreak();
 		DebugListener.original = current_env->APIv1()->SetDebugListener(&DebugListener);
 		current_env->APIv1()->SetDebugBreakHandler(DebugHandler);
-		std::this_thread::sleep_for(std::chrono::duration<float>(10.0));
+		std::this_thread::sleep_for(std::chrono::duration<float>(SM_Debugger_timeout()));
 	}
 	return true;
 }
@@ -114,4 +130,8 @@ void Extension::SDK_OnPauseChange(bool paused) {
 }
 
 void Extension::SDK_OnDependenciesDropped() {
+}
+
+bool Extension::RegisterConCommandBase(ConCommandBase* pVar) {
+	return META_REGCVAR(pVar);
 }

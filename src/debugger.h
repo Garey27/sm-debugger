@@ -18,6 +18,7 @@
 #include <smx/smx-v1.h>
 #include "smx-v1-image.h"
 #include "stack-frames.h"
+#include "extension.h"
 #endif //_INCLUDE_DEBUGGER_H_
 
 
