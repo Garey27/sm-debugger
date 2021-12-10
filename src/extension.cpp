@@ -67,6 +67,11 @@ bool Extension::SDK_OnMetamodLoad(ISmmAPI* ismm, char* error, size_t maxlen, boo
 */
 
 bool Extension::SDK_OnLoad(char *error, size_t maxlen, bool late) {
+	if(late)
+	{
+		snprintf(error, maxlen, "Debugger breakpoints works only before any plugins loaded. (create file sm_debugger.autoload in extensions folder)");
+		return false;
+	}
 	ISourcePawnFactory *factory = nullptr;
 	GetSourcePawnFactoryFn factoryFn = nullptr;
 	ISourcePawnEnvironment *current_env = nullptr;
