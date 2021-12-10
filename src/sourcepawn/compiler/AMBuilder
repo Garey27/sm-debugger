@@ -1,0 +1,86 @@
+# vim: set sts=2 ts=8 sw=2 tw=99 et ft=python: 
+import os
+
+binary = Root.Program(builder, 'spcomp', arch)
+compiler = binary.compiler
+compiler.includes += [
+  os.path.join(SP.amtl, 'amtl'),
+  os.path.join(SP.amtl),
+  os.path.join(builder.currentSourcePath, '..', 'include'),
+  os.path.join(builder.currentSourcePath, '..', 'third_party'),
+  os.path.join(builder.buildPath, 'includes'),
+  os.path.join(builder.buildPath, builder.buildFolder),
+  os.path.join(builder.currentSourcePath, '..'),
+]
+
+if compiler.like('gcc'):
+  compiler.cflags += [
+    '-Wno-format',
+  ]
+  compiler.c_only_flags += ['-std=c99']
+  compiler.postlink += ['-lstdc++']
+if compiler.family == 'clang':
+  compiler.cxxflags += [
+    '-Wno-implicit-exception-spec-mismatch',
+  ]
+if compiler.family == 'gcc':
+  compiler.cflags += [
+    '-Wno-maybe-uninitialized',
+  ]
+  if compiler.version >= '4.6':
+    compiler.cxxflags += ['-Wno-unused-but-set-variable']
+
+compiler.defines += ['HAVE_STDINT_H']
+if builder.target.platform == 'linux':
+  compiler.defines += [
+    'AMX_ANSIONLY',
+    '_GNU_SOURCE'
+  ]
+elif builder.target.platform == 'mac':
+  compiler.defines += [
+    'DARWIN',
+    'AMX_ANSIONLY',
+    'HAVE_SAFESTR'
+  ]
+
+if compiler.like('emscripten'):
+  compiler.defines += [
+    'HAVE_SAFESTR'
+  ]
+
+binary.sources += [
+  'assembler.cpp',
+  'code-generator.cpp',
+  'emitter.cpp',
+  'errors.cpp',
+  'expressions.cpp',
+  'lexer.cpp',
+  'libpawnc.cpp',
+  'lstring.cpp',
+  'memfile.cpp',
+  'name-resolution.cpp',
+  'new-parser.cpp',
+  'optimizer.cpp',
+  'parser.cpp',
+  'pawncc.cpp',
+  'pool-allocator.cpp',
+  'sci18n.cpp',
+  'sclist.cpp',
+  'sctracker.cpp',
+  'scvars.cpp',
+  'semantics.cpp',
+  'sp_symhash.cpp',
+  'types.cpp',
+]
+
+if builder.target.platform == 'linux' and not compiler.like('emscripten'):
+  compiler.defines += ['ENABLE_BINRELOC']
+  binary.sources.append('binreloc.c')
+
+binary.compiler.linkflags[0:0] = [
+  SP.libsmx[arch].binary,
+  SP.zlib[arch],
+  SP.libamtl[arch],
+]
+
+rvalue = builder.Add(binary)

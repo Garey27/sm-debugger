@@ -34,6 +34,7 @@ endif()
 set(CPP_FILES 
 "src/sourcepawn/vm/smx-v1-image.cpp"
 "src/sourcepawn/vm/file-utils.cpp"
+"src/sourcepawn/vm/rtti.cpp"
 "src/extension.cpp"
 "src/debugger.cpp"
 "src/utlbuffer.cpp"

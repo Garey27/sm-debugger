@@ -1,0 +1,375 @@
+# vim: set ts=2 sw=2 tw=99 et ft=python:
+# 
+# Copyright (C) 2004-2012 David Anderson
+# 
+# This file is part of SourcePawn.
+# 
+# SourcePawn is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+# 
+# SourcePawn is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License along with
+# SourcePawn. If not, see http://www.gnu.org/licenses/.
+#
+import os
+import sys
+import copy
+
+def Normalize(path):
+  return os.path.abspath(os.path.normpath(path))
+
+def SetArchFlags(compiler, arch, platform):
+  if compiler.like('gcc'):
+    if arch == 'x86':
+      if not compiler.like('emscripten'):
+        compiler.cflags += ['-msse']
+    else:
+      compiler.cflags += ['-fPIC']
+
+  if arch == 'x64':
+    gccarch = '-m64'
+    msvcarch = '/MACHINE:X64'
+  else:
+    gccarch = '-m32'
+    msvcarch = '/MACHINE:X86'
+
+  if compiler.like('msvc'):
+    if msvcarch not in compiler.linkflags:
+      compiler.linkflags += [msvcarch]
+  else:
+    if gccarch not in compiler.cflags:
+      compiler.cflags += [gccarch]
+    if gccarch not in compiler.linkflags:
+      compiler.linkflags += [gccarch]
+
+def AppendArchSuffix(binary, name, arch):
+  if arch == 'x64':
+    binary.localFolder = name + '.x64'
+
+class Config(object):
+  def __init__(self):
+    super(Config, self).__init__()
+    self.archs = builder.target.arch.replace('x86_64', 'x64').split(',')
+    self.enable_coverage = getattr(builder.options, 'enable_coverage', False)
+
+  def configure(self):
+    cxx = builder.DetectCxx()
+
+    if cxx.like('msvc') and len(self.archs) > 1:
+      raise Exception('Building multiple archs with MSVC is not currently supported')
+
+    archset = set(self.archs)
+    if not archset.issubset(['x86', 'x64']):
+      raise Exception('Unknown target architecture: {0}'.format(builder.target.arch))
+
+    if cxx.like('gcc'):
+      cxx.cflags += [
+        '-pipe',
+        '-Wall',
+        '-Werror',
+        '-Wno-switch',
+      ]
+      cxx.cxxflags += ['-std=c++11']
+
+      if builder.options.debug == '1':
+          cxx.cflags += ['-g3']
+
+      have_gcc = cxx.family is 'gcc'
+      have_clang = cxx.family is 'clang' or cxx.family is 'emscripten'
+      if have_clang or have_gcc:
+        cxx.cflags += ['-fvisibility=hidden']
+        cxx.cxxflags += ['-fvisibility-inlines-hidden']
+        if have_clang or (have_gcc and cxx.version >= '4.7'):
+          cxx.cxxflags += ['-Wno-delete-non-virtual-dtor']
+        cxx.cxxflags += ['-Wno-unused-private-field']
+
+      if self.enable_coverage:
+        if cxx.family == 'clang':
+          coverage_argv = [
+            '-fprofile-instr-generate',
+            '-fcoverage-mapping',
+          ]
+          cxx.cflags += coverage_argv
+          cxx.linkflags += coverage_argv
+        else:
+          raise Exception('Code coverage support is not implemented for {0}.'.format(cxx.family))
+
+      # Disable some stuff we don't use, that gives us better binary
+      # compatibility on Linux.
+      cxx.cxxflags += [
+        '-fno-exceptions',
+        '-fno-rtti',
+        '-fno-threadsafe-statics',
+        '-Wno-non-virtual-dtor',
+        '-Wno-overloaded-virtual',
+      ]
+
+      if have_gcc:
+        cxx.cflags += ['-mfpmath=sse']
+
+      cxx.postlink += ['-lm']
+
+      if cxx.like('emscripten'):
+        emflags = ['-s', 'PRECISE_F32=1']
+        cxx.cflags += emflags
+        cxx.linkflags += emflags
+        cxx.defines += ['__linux__']
+    elif cxx.like('msvc'):
+      if builder.options.debug == '1':
+        cxx.cflags += ['/MTd']
+        cxx.linkflags += ['/NODEFAULTLIB:libcmt']
+      else:
+        cxx.cflags += ['/MT']
+      cxx.defines += [
+        '_CRT_SECURE_NO_DEPRECATE',
+        '_CRT_SECURE_NO_WARNINGS',
+        '_CRT_NONSTDC_NO_DEPRECATE',
+        '_ITERATOR_DEBUG_LEVEL=0',
+      ]
+      cxx.cflags += [
+        '/W3',
+        '/wd4351',
+      ]
+      cxx.cxxflags += [
+        '/EHsc',
+        '/GR-',
+        '/TP',
+      ]
+      cxx.linkflags += [
+        'kernel32.lib',
+        'user32.lib',
+        'gdi32.lib',
+        'winspool.lib',
+        'comdlg32.lib',
+        'advapi32.lib',
+        'shell32.lib',
+        'ole32.lib',
+        'oleaut32.lib',
+        'uuid.lib',
+        'odbc32.lib',
+        'odbccp32.lib',
+      ]
+
+    # Optimization
+    if builder.options.opt == '1':
+      cxx.defines += ['NDEBUG']
+      if cxx.like('gcc'):
+        cxx.cflags += ['-O3']
+        if cxx.like('emscripten'):
+          emflags = ['--closure', '0', '--memory-init-file', '0', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '--llvm-lto', '1']
+          cxx.cflags += emflags
+          cxx.linkflags += ['-O3'] + emflags
+      elif cxx.like('msvc'):
+        cxx.cflags += ['/Ox']
+        cxx.linkflags += ['/OPT:ICF', '/OPT:REF']
+
+    # Debugging
+    if builder.options.debug == '1':
+      cxx.defines += ['DEBUG', '_DEBUG']
+      if cxx.like('msvc'):
+        cxx.cflags += ['/Od', '/RTC1']
+      elif cxx.like('emscripten'):
+        emflags = ['-s', 'ASSERTIONS=1', '-s', 'SAFE_HEAP=1', '-s', 'STACK_OVERFLOW_CHECK=1', '-s', 'WARN_UNALIGNED=0', '-s', 'DEMANGLE_SUPPORT=1']
+        cxx.cflags += emflags
+        cxx.linkflags += emflags
+
+    # This needs to be after our optimization flags which could otherwise disable it.
+    if cxx.like('msvc'):
+      # Don't omit the frame pointer.
+      cxx.cflags += ['/Oy-']
+
+    # Platform-specifics
+    if not cxx.like('emscripten'):
+      if builder.target.platform == 'linux':
+        if cxx.family == 'gcc':
+          cxx.postlink += ['-static-libgcc']
+        elif cxx.family == 'clang':
+          cxx.postlink += ['-lgcc_eh']
+        cxx.postlink += ['-lpthread', '-lrt']
+      elif builder.target.platform == 'mac':
+        if cxx.version >= 'apple-clang-10.0':
+          cxx.cflags += [
+            '-stdlib=libc++',
+            '-mmacosx-version-min=10.9',
+          ]
+          cxx.linkflags += [
+            '-mmacosx-version-min=10.9',
+          ]
+        else:
+          cxx.cflags += [
+            '-mmacosx-version-min=10.5',
+          ]
+          cxx.linkflags += [
+            '-mmacosx-version-min=10.5',
+          ]
+      elif builder.target.platform == 'windows':
+        cxx.defines += ['WIN32', '_WINDOWS']
+
+    cxx.defines += ['KE_THREADSAFE']
+    cxx.defines += ['SOURCEPAWN_VERSION="1.11"']
+
+    if getattr(builder.options, 'enable_spew', False):
+      cxx.defines += ['JIT_SPEW']
+
+    if builder.options.amtl:
+      amtl_path = builder.options.amtl
+    else:
+      amtl_path = os.path.join(builder.sourcePath, 'third_party', 'amtl')
+
+    amtl_path = Normalize(amtl_path)
+    if not os.path.isdir(amtl_path):
+      raise Exception('Could not find AMTL at: {0}'.format(amtl_path))
+    self.amtl = amtl_path
+
+    cxx.cxxincludes += [
+      self.amtl,
+      os.path.join(builder.sourcePath, 'include'),
+    ]
+
+  def ProgramBuilder(self, compiler, name, arch):
+    binary = compiler.Program(name)
+    AppendArchSuffix(binary, name, arch)
+    if binary.compiler.like('msvc'):
+      binary.compiler.linkflags.append('/SUBSYSTEM:CONSOLE')
+    return binary
+
+  def LibraryBuilder(self, compiler, name, arch):
+    binary = compiler.Library(name)
+    AppendArchSuffix(binary, name, arch)
+    if binary.compiler.like('msvc'):
+      binary.compiler.linkflags.append('/SUBSYSTEM:WINDOWS')
+    return binary
+
+  def StaticLibraryBuilder(self, compiler, name, arch):
+    binary = compiler.StaticLibrary(name)
+    AppendArchSuffix(binary, name, arch)
+    return binary
+
+  def Program(self, context, name, arch):
+    compiler = context.cxx.clone()
+    SetArchFlags(compiler, arch, builder.target.platform)
+    return self.ProgramBuilder(compiler, name, arch)
+
+  def Library(self, context, name, arch):
+    compiler = context.cxx.clone()
+    SetArchFlags(compiler, arch, builder.target.platform)
+    return self.LibraryBuilder(compiler, name, arch)
+
+  def StaticLibrary(self, context, name, arch):
+    compiler = context.cxx.clone()
+    SetArchFlags(compiler, arch, builder.target.platform)
+    return self.StaticLibraryBuilder(compiler, name, arch)
+
+class SourcePawn(object):
+  def __init__(self, root, amtl):
+    super(SourcePawn, self).__init__()
+    self.root = root
+    self.amtl = amtl
+    self.arch = builder.target.arch
+    self.spcomp_scripts = [
+      os.path.join('compiler', 'AMBuilder'),
+    ]
+    self.vars = {
+      'Root': self.root,
+      'SP': self,
+    }
+    self.spshell = {}
+    self.spcomp = {}
+    self.libspcomp2 = {}
+    self.libsourcepawn = {}
+    self.zlib = None
+    self.libsmx = None
+    self.libamtl = None
+
+  def BuildSpcomp(self):
+    self.EnsureZlib()
+    self.EnsureLibSmx()
+    self.EnsureAmtl()
+    for arch in self.root.archs:
+      spcomp = self.BuildForArch('compiler/AMBuilder', arch)
+      self.spcomp[arch] = spcomp
+
+  def BuildVM(self):
+    self.EnsureZlib()
+    self.EnsureAmtl()
+    for arch in self.root.archs:
+      spshell, libsourcepawn = self.BuildForArch('vm/AMBuilder', arch)
+      self.spshell[arch] = spshell
+      self.libsourcepawn[arch] = libsourcepawn
+
+  def BuildExperimental(self):
+    self.EnsureAmtl()
+    for arch in self.root.archs:
+      libspcomp2 = self.BuildForArch('exp/compiler/AMBuilder', arch)
+      self.libspcomp2[arch] = libspcomp2
+
+      self.BuildForArch('exp/tools/docparse/AMBuilder', arch)
+
+  def BuildSuite(self):
+    self.BuildSpcomp()
+    self.BuildVM()
+    self.BuildExperimental()
+
+  def EnsureAmtl(self):
+    if self.libamtl is not None:
+      return
+    self.libamtl = {}
+    for arch in self.root.archs:
+      def do_config(builder, name):
+          return self.root.StaticLibrary(builder, name, arch)
+      extra_vars = {'Configure': do_config}
+      libamtl = self.BuildForArch("third_party/amtl/amtl/AMBuilder", arch, extra_vars)
+      self.libamtl[arch] = libamtl.binary
+
+  def EnsureZlib(self):
+    if self.zlib is not None:
+      return
+    self.zlib = {}
+    for arch in self.root.archs:
+      self.zlib[arch] = self.BuildForArch("third_party/zlib/AMBuilder", arch)
+    self.included_zlib = True
+
+  def EnsureLibSmx(self):
+    if self.libsmx is not None:
+      return
+    self.libsmx = {}
+    for arch in self.root.archs:
+      lib = self.BuildForArch('libsmx/AMBuilder', arch)
+      self.libsmx[arch] = lib
+
+  def BuildForArch(self, scripts, arch, extra_vars = {}):
+    new_vars = copy.copy(self.vars)
+    new_vars['arch'] = arch
+    for key in extra_vars:
+        new_vars[key] = extra_vars[key]
+    return builder.Build(scripts, new_vars)
+
+if builder.parent is None:
+  root = Config()
+  root.configure()
+  sp = SourcePawn(root, root.amtl)
+  build = getattr(builder.options, 'build', 'all').split(',')
+else:
+  sp = SourcePawn(external_root, external_amtl)
+  build = external_build
+
+if 'all' in build:
+  sp.BuildSuite()
+else:
+  if 'core' in build:
+    build += ['spcomp', 'vm']
+  if 'spcomp' in build:
+    sp.BuildSpcomp()
+  if 'vm' in build:
+    sp.BuildVM()
+  if 'exp' in build:
+    sp.EnsureLibSmx()
+    sp.BuildExperimental()
+
+if builder.parent is not None:
+  rvalue = sp
