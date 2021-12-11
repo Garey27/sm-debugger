@@ -4,6 +4,7 @@
 #include <thread>
 #include <fmt/format.h>
 
+#define LOWEST_SOURCEPAWN_API_VERSION 0x0207
 Extension g_zr;
 SMEXT_LINK(&g_zr);
 
@@ -129,7 +130,7 @@ bool Extension::SDK_OnLoad(char *error, size_t maxlen, bool late) {
 			GetProcAddress((HMODULE)module, "GetSourcePawnFactory"));
 	}
 	if (factoryFn) {
-		factory = factoryFn(SOURCEPAWN_API_VERSION);
+		factory = factoryFn(LOWEST_SOURCEPAWN_API_VERSION);
 	}
 	if (factory) {
 		current_env = factory->CurrentEnvironment();
