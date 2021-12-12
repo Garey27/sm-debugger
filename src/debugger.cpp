@@ -12,9 +12,11 @@
 #include <vector>
 #include "utlbuffer.h"
 #include <fstream>
-#include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 #include <filesystem>
+#include <fmt/printf.h>
 
 #include <brynet/net/EventLoop.hpp>
 #include <brynet/net/ListenThread.hpp>
@@ -99,7 +101,7 @@ void removeClientID(const TcpConnection::Ptr& session);
 class DebuggerClient {
 public:
 	TcpConnection::Ptr socket;
-	std::set <std::string> files;
+	std::unordered_set <std::string> files;
 	int DebugState = 0;
 
 	struct variable_s {
@@ -120,18 +122,19 @@ public:
 	};
 
 public:
+	bool unload = false;
 	bool receive_walk_cmd = false;
 	std::mutex mtx;
 	std::condition_variable cv;
 	SourcePawn::IPluginContext* context_;
 	uint32_t current_line;
-	std::map<std::string, std::set<long>> break_list;
+	std::unordered_map<std::string, std::unordered_set<long>> break_list;
 	int current_state = 0;
 	cell_t lastfrm_ = 0;
 	cell_t cip_;
 	cell_t frm_;
-	std::map<std::string, SmxV1Image*> images;
-	SmxV1Image* current_image = nullptr;
+	std::map<std::string, std::shared_ptr<SmxV1Image>> images;
+	std::shared_ptr<SmxV1Image> current_image = nullptr;
 	SourcePawn::IFrameIterator* debug_iter;
 	DebuggerClient(const TcpConnection::Ptr& tcp_connection)
 		: socket(tcp_connection) {
@@ -139,8 +142,18 @@ public:
 
 	~DebuggerClient() {
 		stopDebugging();
-		printf("Im dying!\n");
+		fmt::print("Debugger disabled.\n");
 	}
+
+	class debugger_stopped : public std::exception
+	{
+		std::string what_message;
+	public:
+		const char* what() const throw ()
+		{
+			return "Debugger exited!";
+		}
+	};
 
 	void setBreakpoint(std::string path, int line, int id) {
 		break_list[path].insert(line);
@@ -254,24 +267,100 @@ public:
 		} /* if */
 		out_value += out;
 	}
-	nlohmann::json read_variable(uint32_t addr, bool local, uint32_t type_id, debug::Rtti* rtti)
+	nlohmann::json read_variable(uint32_t& addr, uint32_t type_id, debug::Rtti* rtti, bool is_ref = false)
 	{
 		nlohmann::json json;
-		if(!rtti)
+		if (!rtti)
 		{
 			rtti = const_cast<debug::Rtti*>(current_image->rtti_data()->typeFromTypeId(type_id));
 		}
 		cell_t* ptr;
-		if (rtti->type() == cb::kEnumStruct)
+		switch (rtti->type())
+		{
+		case cb::kAny:
+		{
+			context_->LocalToPhysAddr(addr, &ptr);
+			json = (int32_t)*ptr;
+		}
+		case cb::kBool:
+		{
+			context_->LocalToPhysAddr(addr, &ptr);
+			json = (bool)*ptr;
+			break;
+		}
+		case cb::kInt32:
+		{
+			context_->LocalToPhysAddr(addr, &ptr);
+			json = (int32_t)*ptr;
+			break;
+		}
+		case cb::kFloat32:
+		{
+			context_->LocalToPhysAddr(addr, &ptr);
+			json = sp_ctof(*ptr);
+			break;
+		}
+		case cb::kFixedArray:
+		{
+			if (rtti->inner())
+			{
+				if (rtti->inner()->type() == cb::kChar8)
+				{
+					json = read_variable(addr, rtti->inner()->type(), const_cast<debug::Rtti*>(rtti->inner()), false);
+				}
+				else
+				{
+					for (int i = 0; i < rtti->index(); i++)
+					{
+						auto start = addr;
+
+						json[i] = read_variable(start, rtti->inner()->type(), const_cast<debug::Rtti*>(rtti->inner()), false);
+						addr += 4;
+
+					}
+				}
+			}
+			break;
+		}
+		case cb::kChar8:
+		{
+			char* str = nullptr;
+			if (context_->LocalToStringNULL(addr, &str) != SP_ERROR_NONE)
+			{
+				break;
+			}
+			if (str)
+			{
+				addr += strlen(str) + 1;
+			}
+			if (addr % sizeof(cell_t) != 0)
+			{
+				addr += sizeof(cell_t) - (addr % sizeof(cell_t));
+			}
+			json = str ? str : "";
+			break;
+		}
+		case cb::kArray:
+		{
+			if (is_ref)
+			{
+				cell_t* a;
+				context_->LocalToPhysAddr(addr, &a);
+				addr = *a;
+			}
+			if (rtti->inner())
+			{
+				json = read_variable(addr, rtti->inner()->type(), const_cast<debug::Rtti*>(rtti->inner()));
+			}
+			break;
+		}
+		case cb::kEnumStruct:
 		{
 			auto fields = current_image->getEnumFields(rtti->index());
 
 			size_t start{};
 
 			start = addr;
-
-			if (local)
-				start += frm_;
 
 			for (auto& field : fields)
 			{
@@ -281,212 +370,30 @@ public:
 				{
 					break;
 				}
-				switch (rtti_field->type())
-				{
-				case cb::kAny:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					json[name] = (int32_t)*ptr;
-					start += sizeof(cell_t);
-				}
-				case cb::kBool:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					json[name] = (bool)*ptr;
-					start += sizeof(cell_t);
-					break;
-				}
-				case cb::kInt32:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					json[name] = (int32_t)*ptr;
-					start += sizeof(cell_t);
-					break;
-				}
-				case cb::kChar8:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					json[name] = *(uint8_t*)ptr;
-					start += sizeof(cell_t);
-					break;
-				}
-				case cb::kFloat32:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					json[name] = sp_ctof(*ptr);
-					start += sizeof(cell_t);
-					break;
-				}
-				case cb::kFixedArray:
-				{
-					if (rtti_field->inner())
-					{
-						switch (rtti_field->inner()->type())
-						{
-						case cb::kEnumStruct:
-						{
-							json[name] = read_variable(start, false, cb::kEnumStruct, const_cast<debug::Rtti*>(rtti_field->inner()));
-							break;
-						}
-						}
-					}
-						break;
-				}
-				case cb::kArray:
-				{
-					if (rtti_field->inner())
-					{
-						switch (rtti_field->inner()->type())
-						{
-						case cb::kChar8:
-						{
-							char* str;
-							if (context_->LocalToStringNULL(start, &str) != SP_ERROR_NONE)
-							{
-								break;
-							}
-							start += strlen(str);
-							start += 1;
-							if (start % sizeof(cell_t) != 0)
-							{
-								start += sizeof(cell_t) - (start % sizeof(cell_t));
-							}
-							json[name] = str;
-							break;
-						}
-						case cb::kEnumStruct:
-						{
-							json[name] = read_variable(start, false, cb::kEnumStruct, const_cast<debug::Rtti*>(rtti_field->inner()));
-							break;
-						}
-						}
-					}
-				}
-				case cb::kEnum:
-				case cb::kTypedef:
-				case cb::kTypeset:
-				case cb::kClassdef:
-				{
-					break;
-				}
-				case cb::kEnumStruct:
-				{
-					break;
-				}
-				}
+				json[name] = read_variable(start, rtti_field->type(), (sp::debug::Rtti*)rtti_field);
 			}
+			break;
 		}
-		else if (rtti->type() == cb::kClassdef)
+		case cb::kClassdef:
 		{
 			auto fields = current_image->getTypeFields(rtti->index());
 			cell_t* ptr;
-			size_t start{};
-			if (context_->LocalToPhysAddr(addr, &ptr))
-			{
-				return json;
-			}
+			size_t field_offset{};
+			field_offset = addr;
 
-			start = *ptr;
-			
 			for (auto& field : fields)
 			{
+				size_t start = field_offset;
+
 				auto name = current_image->GetDebugName(field->name);
 				auto rtti_field = current_image->rtti_data()->typeFromTypeId(field->type_id);
-				switch (rtti_field->type())
-				{
-				case cb::kAny:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					start += sizeof(cell_t);
-					json[name] = (int32_t)*ptr;
-				}
-				case cb::kBool:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					start += sizeof(cell_t);
-					json[name] = (bool)*ptr;
-					break;
-				}
-				case cb::kInt32:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					start += sizeof(cell_t);
-					json[name] = (int32_t)*ptr;
-					break;
-				}
-				case cb::kChar8:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					start += sizeof(cell_t);
-					json[name] = *(uint8_t*)ptr;
-					break;
-				}
-				case cb::kFloat32:
-				{
-					context_->LocalToPhysAddr(start, &ptr);
-					start += sizeof(cell_t);
-					json[name] = sp_ctof(*ptr);
-					break;
-				}
-				case cb::kFixedArray:
-				{
-					if (rtti_field->inner())
-					{
-						switch (rtti_field->inner()->type())
-						{
-						case cb::kEnumStruct:
-						{
-							json[name] = read_variable(start, false, cb::kEnumStruct, const_cast<debug::Rtti*>(rtti_field->inner()));
-							break;
-						}
-						}
-					}
-					break;
-				}
-				case cb::kArray:
-				{
-					if (rtti_field->inner())
-					{
-						switch (rtti_field->inner()->type())
-						{
-						case cb::kChar8:
-						{
-							char* str;
-							if (context_->LocalToStringNULL(start, &str) != SP_ERROR_NONE)
-							{
-								break;
-							}
-							start += strlen(str);
-							start += 1;
-							if (start % sizeof(cell_t) != 0)
-							{
-								start += sizeof(cell_t) - (start % sizeof(cell_t));
-							}
-							json[name] = str;
-							break;
-						}
-						case cb::kEnumStruct:
-						{
-							json[name] = read_variable(start, false, cb::kEnumStruct, const_cast<debug::Rtti*>(rtti_field->inner()));
-							break;
-						}
-						}
-					}
-				}
-				case cb::kEnum:
-				case cb::kTypedef:
-				case cb::kTypeset:
-				case cb::kClassdef:
-				{
-					break;
-				}
-				case cb::kEnumStruct:
-				{
-					break;
-				}
-				}
+				json[name] = read_variable(start, rtti_field->type(), (sp::debug::Rtti*)rtti_field, true);
+				field_offset += sizeof(cell_t);
 			}
+			break;
 		}
+		}
+
 		return json;
 	}
 	variable_s display_variable(SmxV1Image::Symbol* sym, uint32_t index[],
@@ -501,15 +408,15 @@ public:
 		var.value = "";
 		cell_t value;
 		std::unique_ptr<std::vector<SmxV1Image::ArrayDim*>> symdims;
-		if (var.name == "myinfo")
-		{
-			printf("");
-		}
 		assert(index != NULL);
 		auto rtti = sym->rtti();
 		if (rtti && rtti->type_id)
 		{
-			auto json = read_variable(rtti->address, sym->vclass() & DISP_MASK, rtti->type_id, nullptr);
+			size_t base = rtti->address;
+			if (sym->vclass())
+				base += frm_; // addresses of local vars are relative to the frame
+
+			auto json = read_variable(base, rtti->type_id, nullptr, sym->vclass() == 0x3);
 			if (!json.empty())
 			{
 				var.value = json.dump();
@@ -668,7 +575,7 @@ public:
 
 	void evaluateVar(int frame_id, char* variable) {
 		if (current_state != DebugRun) {
-			SmxV1Image* imagev1 = (SmxV1Image*)current_image;
+			auto imagev1 = current_image.get();
 
 			std::unique_ptr<SmxV1Image::Symbol> sym;
 			if (imagev1->GetVariable(variable, cip_, sym)) {
@@ -745,7 +652,7 @@ public:
 		bool success = false;
 		bool valid_value = true;
 		if (current_state != DebugRun) {
-			SmxV1Image* imagev1 = (SmxV1Image*)current_image;
+			auto imagev1 = current_image.get();
 			std::unique_ptr<SmxV1Image::Symbol> sym;
 			cell_t result = 0;
 			value.erase(remove(value.begin(), value.end(), '\"'), value.end());
@@ -806,7 +713,7 @@ public:
 		bool local_scope = strstr(scope, ":%local%");
 		bool global_scope = strstr(scope, ":%global%");
 		if (current_state != DebugRun) {
-			SmxV1Image* imagev1 = (SmxV1Image*)current_image;
+			auto imagev1 = current_image.get();
 
 			std::unique_ptr<SmxV1Image::Symbol> sym;
 			if (current_image && imagev1) {
@@ -881,10 +788,11 @@ public:
 				for (; !debug_iter->Done(); debug_iter->Next(), index++) {
 
 					if (debug_iter->IsNativeFrame()) {
-						continue;
+						callStack.push_back({ 0,
+											 debug_iter->FunctionName(),
+											 "native" });
 					}
-
-					if (debug_iter->IsScriptedFrame()) {
+					else if (debug_iter->IsScriptedFrame()) {
 						auto current_file = std::filesystem::path(debug_iter->FilePath()).filename().string();
 						std::ranges::transform(current_file, current_file.begin(),
 							[](unsigned char c) { return std::tolower(c); });
@@ -904,10 +812,11 @@ public:
 			for (; !iter->Done(); iter->Next(), index++) {
 
 				if (iter->IsNativeFrame()) {
-					continue;
+					callStack.push_back({ 0,
+										 iter->FunctionName(),
+										 "" });
 				}
-
-				if (iter->IsScriptedFrame()) {
+				else if (iter->IsScriptedFrame()) {
 					std::string current_file = iter->FilePath();
 					for (auto file : files) {
 						if (file.find(current_file) != std::string::npos) {
@@ -920,14 +829,6 @@ public:
 				}
 			}
 			context_->DestroyFrameIterator(iter);
-			/*if (!callStack.empty()) {
-				callStack[0].line = current_line - 1;
-				callStack[0].filename = current_file;
-			} else {
-				callStack.push_back({current_line - 1,
-									 std::to_string(current_line - 1),
-									 current_file});
-			}*/
 		}
 
 		CUtlBuffer buffer;
@@ -970,6 +871,11 @@ public:
 			std::unique_lock<std::mutex> lck(mtx);
 			cv.wait(lck, [this] { return receive_walk_cmd; });
 		}
+		if(current_state == DebugDead)
+		{
+			unload = true;
+			throw debugger_stopped();
+		}
 	}
 
 	void ReportError(const IErrorReport& report, IFrameIterator& iter) {
@@ -985,7 +891,7 @@ public:
 		auto image = images.find(filename);
 		if (image == images.end()) {
 			FILE* fp = fopen(filename.c_str(), "rb");
-			current_image = new SmxV1Image(fp);
+			current_image = std::make_shared<SmxV1Image>(fp);
 			current_image->validate();
 			images.insert({ filename, current_image });
 			fclose(fp);
@@ -1028,7 +934,7 @@ public:
 		}
 		context_->DestroyFrameIterator(iter);
 
-		static long lastline = 0;
+		static uint32_t lastline = 0;
 		current_image->LookupLine(cip_, &current_line);
 		// Reset the frame iterator, so stack traces start at the beginning
 		// again.
@@ -1048,13 +954,10 @@ public:
 
 			auto found = break_list.find(current_file);
 			if (found != break_list.end()) {
-				for (auto br : found->second) {
-					if (current_line == br) {
-						current_line = br;
-						current_state = DebugBreakpoint;
-						WaitWalkCmd();
-						break;
-					}
+				if (found->second.find(current_line) != found->second.end())
+				{
+					current_state = DebugBreakpoint;
+					WaitWalkCmd();
 				}
 			}
 		}
@@ -1062,11 +965,14 @@ public:
 		/* check whether we are stepping through a sub-function */
 		if (current_state == DebugStepOver) {
 			if (frm_ < lastfrm_)
+			{
 				return current_state;
-			else
-				WaitWalkCmd();
+			}
+			
+			WaitWalkCmd();
+
 			if (current_state == DebugDead)
-				return DebugDead;
+				return current_state;
 		}
 
 		lastfrm_ = frm_;
@@ -1146,11 +1052,11 @@ public:
 	}
 
 	void stopDebugging() {
-		if (!receive_walk_cmd) {
-			current_state = DebugDead;
-			receive_walk_cmd = true;
-			cv.notify_one();
-		}
+		current_state = DebugDead;
+		receive_walk_cmd = true;
+		cv.notify_one();
+		std::unique_lock<std::mutex> lck(mtx);
+		cv.wait(lck, [this] { return unload; });
 	}
 
 	void recvStopDebugging(CUtlBuffer* buf) {
@@ -1365,37 +1271,47 @@ void(DebugHandler)(SourcePawn::IPluginContext* IPlugin,
 		return;
 
 	if (!clients.empty()) {
-		auto found = false;
 		/* first search already found attached hook */
-		for (auto& client : clients) {
+		for (auto it = clients.begin(); it != clients.end(); ++it) {
+			const auto& client = *it;
 			if (client && client->context_ == IPlugin) {
-				found = true;
-				client->DebugHook(IPlugin, BreakInfo);
-				break;
-			}
-		}
-
-		/* if not found, search for new client who wants to attach to current
-		 * file */
-		if (!found) {
-			for (auto& client : clients) {
-				for (int i = 0;
-					i < IPlugin->GetRuntime()->GetDebugInfo()->NumFiles();
-					i++) {
-					auto filename =
-						IPlugin->GetRuntime()->GetDebugInfo()->GetFileName(
-							i);
-
-					auto current_file = std::filesystem::path(filename).filename().string();
-					std::ranges::transform(current_file, current_file.begin(),
-						[](unsigned char c) { return std::tolower(c); });
-					if (client->files.find(current_file) != client->files.end())
-					{
-						client->DebugHook(IPlugin, BreakInfo);
-						break;
-					}
+				try
+				{
+					client->DebugHook(IPlugin, BreakInfo);
+				}
+				catch (DebuggerClient::debugger_stopped& ex)
+				{
+					//it = clients.begin();
+					//continue;
+					return;
 				}
 			}
+			
+		}
+				
+		for (int i = 0;
+			i < IPlugin->GetRuntime()->GetDebugInfo()->NumFiles();
+			i++) {
+			auto filename =
+				IPlugin->GetRuntime()->GetDebugInfo()->GetFileName(
+					i);
+			auto current_file = std::filesystem::path(filename).filename().string();
+			std::ranges::transform(current_file, current_file.begin(), [](unsigned char c) { return std::tolower(c); });
+
+			for (auto it = clients.begin(); it != clients.end(); ++it) {
+				const auto& client = *it;
+				if (client->files.find(current_file) != client->files.end())
+				{
+					try
+					{
+						client->DebugHook(IPlugin, BreakInfo);
+					}
+					catch (DebuggerClient::debugger_stopped& ex)
+					{
+						return;
+					}
+				}
+			}			
 		}
 	}
 }
