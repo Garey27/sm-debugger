@@ -29,7 +29,7 @@ jobs:
       run: |
             cp cmake/x86-linux-sm.cmake dep/vcpkg/triplets/x86-linux-sm.cmake
             ./dep/vcpkg/bootstrap-vcpkg.sh
-            ./dep/vcpkg/vcpkg install --triplet x86-linux-sm | cat dep/vcpkg/buildtrees/fmt/install-x86-linux-sm-dbg-out.log
+            ./dep/vcpkg/vcpkg install --triplet x86-linux-sm || cat dep/vcpkg/buildtrees/fmt/install-x86-linux-sm-dbg-out.log
 
 
     - name: Configure CMake
