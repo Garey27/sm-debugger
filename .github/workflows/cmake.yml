@@ -19,7 +19,7 @@ jobs:
     - name: Install vcpkg packets
       working-directory: ${{github.workspace}}
       run: |
-            apt update && apt install curl -y
+            apt update && apt-get install curl zip unzip tar -y
             ./dep/vcpkg/bootstrap-vcpkg.sh
             ./dep/vcpkg/vcpkg install --triplet x86-linux-static
 
