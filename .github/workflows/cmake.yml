@@ -5,8 +5,6 @@ on: [push, pull_request]
 jobs:
   build_linux:
     runs-on: ubuntu-latest
-    container:
-      image: "alpine:latest"
     
     env:
       CMAKE_TOOLCHAIN_FILE: ${{github.workspace}}/cmake/linux-i686.cmake
@@ -39,7 +37,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: linux
-        path: ${{github.workspace}}/build/x86-Release/sm_debugger.ext.so
+        path: ${{github.workspace}}/build/sm_debugger.ext.so
           
   build_windows:
     runs-on: windows-latest
@@ -78,7 +76,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: windows
-        path: ${{github.workspace}}/build/x86-Release/sm_debugger.ext.dll
+        path: ${{github.workspace}}/build/sm_debugger.ext.dll
   publish:
     name: 'Publish'
     runs-on: ubuntu-latest
