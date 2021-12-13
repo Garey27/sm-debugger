@@ -15,14 +15,25 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
-    - name: Install vcpkg packets
+    - name: Install dep packets
       working-directory: ${{github.workspace}}
       run: |
             sudo apt-get update
-            sudo apt-get --assume-yes install gcc-multilib g++-multilib p7zip-full libssl-dev curl zip unzip tar
+            sudo apt-get --assume-yes install curl zip unzip tar
+
+    - name: Set up GCC
+      uses: egor-tensin/setup-gcc@v1
+      with:
+        version: latest
+        platform: x86
+
+    - name: Install vcpkg packets
+      working-directory: ${{github.workspace}}
+      run: |
             cp cmake/x86-linux-sm.cmake dep/vcpkg/triplets/x86-linux-sm.cmake
             ./dep/vcpkg/bootstrap-vcpkg.sh
             ./dep/vcpkg/vcpkg install --triplet x86-linux-sm
+
 
     - name: Configure CMake
       # Note the current convention is to use the -S and -B options here to specify source 
