@@ -19,8 +19,8 @@ jobs:
     - name: Install vcpkg packets
       working-directory: ${{github.workspace}}
       run: |
-            sudo apt-get update
-            sudo apt-get --assume-yes install gcc-multilib g++-multilib p7zip-full libssl-dev curl zip unzip tar
+            apt-get update
+            apt-get --assume-yes install gcc-multilib g++-multilib p7zip-full libssl-dev curl zip unzip tar
             cp cmake/x86-linux-sm.cmake dep/vcpkg/triplets/x86-linux-sm.cmake
             ./dep/vcpkg/bootstrap-vcpkg.sh
             ./dep/vcpkg/vcpkg install --triplet x86-linux-sm
@@ -33,6 +33,7 @@ jobs:
             rm -rf build 
             CC=icc CXX=icpc cmake -B build -DCMAKE_TOOLCHAIN_FILE="./dep/vcpkg/scripts/buildsystems/vcpkg.cmake"  -DVCPKG_TARGET_TRIPLET=x86-linux-sm
             cmake --build build -j 
+            tree .
 
     - name: Deploy artifacts
       uses: actions/upload-artifact@v2
@@ -69,7 +70,9 @@ jobs:
 
     - name: Build
       working-directory: ${{github.workspace}}
-      run: cmake --build build --config Release --parallel
+      run: |
+            cmake --build build --config Release --parallel
+            tree ${{github.workspace}}
               
     - name: Deploy artifacts
       uses: actions/upload-artifact@v2
