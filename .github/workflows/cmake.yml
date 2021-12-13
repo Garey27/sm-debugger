@@ -16,8 +16,8 @@ jobs:
     - name: Install dep packets
       working-directory: ${{github.workspace}}
       run: |
-            sudo apt-get update
-            sudo apt-get --assume-yes install curl zip unzip tar pkg-config 
+            apt-get update
+            apt-get --assume-yes install curl zip unzip tar pkg-config 
             
 
     - name: Install vcpkg packets
