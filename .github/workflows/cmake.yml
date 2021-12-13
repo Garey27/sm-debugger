@@ -30,7 +30,7 @@ jobs:
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
       run:  |
             rm -rf build 
-            CC=icc CXX=icpc cmake -B build -DCMAKE_TOOLCHAIN_FILE="./dep/vcpkg/scripts/buildsystems/vcpkg.cmake"  -DVCPKG_TARGET_TRIPLET=x86-linux-sm
+            cmake -B build -DCMAKE_TOOLCHAIN_FILE="./dep/vcpkg/scripts/buildsystems/vcpkg.cmake"  -DVCPKG_TARGET_TRIPLET=x86-linux-sm
             cmake --build build -j 
             tree .
 
