@@ -16,7 +16,7 @@ jobs:
       working-directory: ${{github.workspace}}
       run: |
             sudo add-apt-repository 'deb http://mirror.yandex.ru/ubuntu/ hirsute main universe' -y
-            sudo apt-get update
+            #sudo apt-get update
             sudo apt-get --assume-yes install curl zip unzip tar pkg-config gcc-11-multilib g++-11-multilib
 
     - name: Install vcpkg packets
@@ -24,7 +24,7 @@ jobs:
       run: |
             cp cmake/x86-linux-sm.cmake dep/vcpkg/triplets/x86-linux-sm.cmake
             ./dep/vcpkg/bootstrap-vcpkg.sh -musl
-            ./dep/vcpkg/vcpkg install --triplet x86-linux-sm
+            ./dep/vcpkg/vcpkg install --triplet x86-linux-sm --debug
 
 
     - name: Configure CMake
