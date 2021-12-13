@@ -15,7 +15,7 @@ jobs:
     - name: Install dep packets
       working-directory: ${{github.workspace}}
       run: |
-            sudo add-apt-repository 'deb http://mirrors.kernel.org/ubuntu hirsute main universe' -y
+            sudo add-apt-repository 'deb http://mirror.yandex.ru/ubuntu/ hirsute main universe' -y
             sudo apt-get update
             sudo apt-get --assume-yes install curl zip unzip tar pkg-config gcc-11-multilib g++-11-multilib
 
@@ -23,8 +23,8 @@ jobs:
       working-directory: ${{github.workspace}}
       run: |
             cp cmake/x86-linux-sm.cmake dep/vcpkg/triplets/x86-linux-sm.cmake
-            ./dep/vcpkg/bootstrap-vcpkg.sh
-            ./dep/vcpkg/vcpkg install --triplet x86-linux-sm || cat dep/vcpkg/buildtrees/fmt/install-x86-linux-sm-dbg-out.log
+            ./dep/vcpkg/bootstrap-vcpkg.sh -musl
+            ./dep/vcpkg/vcpkg install --triplet x86-linux-sm
 
 
     - name: Configure CMake
@@ -33,7 +33,7 @@ jobs:
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
       run:  |
             rm -rf build 
-            cmake -B build -DCMAKE_TOOLCHAIN_FILE="./dep/vcpkg/scripts/buildsystems/vcpkg.cmake"  -DVCPKG_TARGET_TRIPLET=x86-linux-sm -DCMAKE_CXX_FLAGS_INIT="-m32" -DCMAKE_C_FLAGS_INIT="-m32"
+            cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE="./dep/vcpkg/scripts/buildsystems/vcpkg.cmake"  -DVCPKG_TARGET_TRIPLET=x86-linux-sm
             cmake --build build -j 
             tree .
 
