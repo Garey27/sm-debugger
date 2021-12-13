@@ -22,6 +22,9 @@ set(SP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dep/sourcemod/sourcepawn")
 include("cmake/sourcemod.cmake")
 include("cmake/cmake-version4git.cmake")
 
+PROJECT_VERSION_FROM_GIT()
+add_definitions(${PROJECT_VERSION4GIT_CFLAGS})
+
 # Compiler specific jobs #
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR "Arch must be 32-bit")
