@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.20)
 
 project(sm_debugger)
 
@@ -22,15 +22,14 @@ set(SP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dep/sourcemod/sourcepawn")
 include("cmake/sourcemod.cmake")
 include("cmake/cmake-version4git.cmake")
 
-# Compiler specific jobs #
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message(FATAL_ERROR "Arch must be 32-bit")
-endif()
-
 find_package(ZLIB REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_path(BRYNET_INCLUDE_DIRS "brynet/Version.hpp")
 
+# Compiler specific jobs #
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(FATAL_ERROR "Arch must be 32-bit")
+endif()
 
 set(CPP_FILES 
 "src/sourcepawn/vm/smx-v1-image.cpp"
@@ -67,8 +66,8 @@ target_link_libraries(${OUTPUT_NAME}  PRIVATE ws2_32 legacy_stdio_definitions)
 endif()
 set_target_properties(${OUTPUT_NAME}
     PROPERTIES
-    CXX_STANDARD 17
-    CXX_EXTENSIONS ON
+    CXX_STANDARD 20
+    CXX_EXTENSIONS OFF
     )
     
 target_include_directories(${OUTPUT_NAME} PRIVATE ${BRYNET_INCLUDE_DIRS})
