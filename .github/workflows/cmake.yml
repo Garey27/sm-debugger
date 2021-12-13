@@ -6,9 +6,6 @@ jobs:
   build_linux:
     runs-on: ubuntu-latest
     
-    env:
-      CMAKE_TOOLCHAIN_FILE: ${{github.workspace}}/cmake/linux-i686.cmake
-
     steps:
     - uses: actions/checkout@v2    
       with:
