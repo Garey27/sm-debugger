@@ -19,7 +19,7 @@ jobs:
     - name: Install vcpkg packets
       working-directory: ${{github.workspace}}
       run: |
-            apt install curl -y
+            apt update && apt install curl -y
             ./dep/vcpkg/bootstrap-vcpkg.sh
             ./dep/vcpkg/vcpkg install --triplet x86-linux-static
 
@@ -36,7 +36,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: linux
-        path: ${{github.workspace}}/bin/Release/voice_utils_amxx_i386.so
+        path: ${{github.workspace}}/out/build/x86-Release/sm_debugger.ext.so
           
   build_windows:
     runs-on: windows-latest
@@ -73,7 +73,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: windows
-        path: ${{github.workspace}}/bin/Release/voice_utils_amxx.dll
+        path: ${{github.workspace}}/out/build/x86-Release/sm_debugger.ext.dll
   publish:
     name: 'Publish'
     runs-on: ubuntu-latest
@@ -96,12 +96,12 @@ jobs:
       
       - name: Archive artifacts
         run: |
-          mkdir -p addons/amxmodx/modules addons/amxmodx/scripting
-          cp voice_utils_amxx.dll voice_utils_amxx_i386.so addons/amxmodx/modules
-          cp scripting/voiceutils.inc addons/amxmodx/scripting
-          7z a -tzip voice_utils-bin-${RELEASE_VERSION}.zip addons
+          mkdir -p addons/sourcemod/extensions
+          cp sm_debugger.ext.dll sm_debugger.ext.so addons/sourcemod/extensions
+          touch addons/sourcemod/extensions/sm_debugger.autoload
+          7z a -tzip sm_debugger-bin-${RELEASE_VERSION}.zip addons
         
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: voice_utils-bin-*.zip
+          files: sm_debugger-bin-*.zip

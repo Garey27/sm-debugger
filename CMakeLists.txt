@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.20)
 project(sm_debugger)
 
 find_package(nlohmann_json CONFIG REQUIRED)
-find_package(GTest CONFIG REQUIRED)
 
 if(NOT SDK)
     set(SDK csgo)
