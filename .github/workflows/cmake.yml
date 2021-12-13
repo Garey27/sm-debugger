@@ -19,9 +19,11 @@ jobs:
     - name: Install vcpkg packets
       working-directory: ${{github.workspace}}
       run: |
-            apt update && apt-get install curl zip unzip tar -y
+            sudo apt-get update
+            sudo apt-get --assume-yes install gcc-multilib g++-multilib p7zip-full libssl-dev curl zip unzip tar
+            cp cmake/x86-linux-sm.cmake dep/vcpkg/triplets/x86-linux-sm.cmake
             ./dep/vcpkg/bootstrap-vcpkg.sh
-            ./dep/vcpkg/vcpkg install --triplet x86-linux-static
+            ./dep/vcpkg/vcpkg install --triplet x86-linux-sm
 
     - name: Configure CMake
       # Note the current convention is to use the -S and -B options here to specify source 
@@ -29,14 +31,14 @@ jobs:
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
       run:  |
             rm -rf build 
-            CC=icc CXX=icpc cmake -B build -DCMAKE_TOOLCHAIN_FILE="./dep/vcpkg/scripts/buildsystems/vcpkg.cmake"  -DVCPKG_TARGET_TRIPLET=x86-linux-static
+            CC=icc CXX=icpc cmake -B build -DCMAKE_TOOLCHAIN_FILE="./dep/vcpkg/scripts/buildsystems/vcpkg.cmake"  -DVCPKG_TARGET_TRIPLET=x86-linux-sm
             cmake --build build -j 
 
     - name: Deploy artifacts
       uses: actions/upload-artifact@v2
       with:
         name: linux
-        path: ${{github.workspace}}/out/build/x86-Release/sm_debugger.ext.so
+        path: ${{github.workspace}}/build/x86-Release/sm_debugger.ext.so
           
   build_windows:
     runs-on: windows-latest
@@ -73,7 +75,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: windows
-        path: ${{github.workspace}}/out/build/x86-Release/sm_debugger.ext.dll
+        path: ${{github.workspace}}/build/x86-Release/sm_debugger.ext.dll
   publish:
     name: 'Publish'
     runs-on: ubuntu-latest
