@@ -4,7 +4,7 @@
 
 #define SMEXT_CONF_NAME			"SM Debugger"
 #define SMEXT_CONF_DESCRIPTION	"SM Debugger"
-#define SMEXT_CONF_VERSION		"0.0.1"
+#define SMEXT_CONF_VERSION		PROJECT_VERSION
 #define SMEXT_CONF_AUTHOR		"Garey"
 #define SMEXT_CONF_URL			"http://hlmod.ru"
 #define SMEXT_CONF_LOGTAG		"SMD"
