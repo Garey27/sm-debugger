@@ -35,6 +35,17 @@ using namespace brynet;
 using namespace brynet::net;
 using namespace brynet::net::http;
 
+//
+//  Lowercases string
+//
+template <typename T>
+std::basic_string<T> lowercase(const std::basic_string<T>& s)
+{
+	std::basic_string<T> s2 = s;
+	std::transform(s2.begin(), s2.end(), s2.begin(), tolower);
+	return std::move(s2);
+}
+
 enum DebugState {
 	DebugDead = -1,
 	DebugRun = 0,
@@ -794,8 +805,7 @@ public:
 					}
 					else if (debug_iter->IsScriptedFrame()) {
 						auto current_file = std::filesystem::path(debug_iter->FilePath()).filename().string();
-						std::ranges::transform(current_file, current_file.begin(),
-							[](unsigned char c) { return std::tolower(c); });
+						lowercase(current_file);
 						callStack.push_back({ debug_iter->LineNumber() - 1,
 											 debug_iter->FunctionName(),
 											 current_file });
@@ -920,8 +930,7 @@ public:
 
 			if (iter->IsScriptedFrame()) {
 				current_file = std::filesystem::path(iter->FilePath()).filename().string();
-				std::ranges::transform(current_file, current_file.begin(),
-					[](unsigned char c) { return std::tolower(c); });
+				lowercase(current_file);
 
 				for (auto file : files) {
 					if (file.find(current_file) != std::string::npos) {
@@ -994,8 +1003,7 @@ public:
 		int strlen = buf->GetInt();
 		buf->GetString(file, strlen);
 		auto filename = std::filesystem::path(file).filename().string();
-		std::ranges::transform(filename, filename.begin(),
-			[](unsigned char c) { return std::tolower(c); });
+		lowercase(filename);
 		files.insert(filename);
 	}
 
@@ -1032,8 +1040,7 @@ public:
 		int strlen = buf->GetInt();
 		buf->GetString(path, strlen);
 		std::string filename(std::filesystem::path(path).filename().string());
-		std::ranges::transform(filename, filename.begin(),
-			[](unsigned char c) { return std::tolower(c); });
+		lowercase(filename);
 		files.insert(filename);
 		int line = buf->GetInt();
 		int id = buf->GetInt();
@@ -1046,8 +1053,7 @@ public:
 		buf->GetString(path, strlen);
 
 		std::string filename(std::filesystem::path(path).filename().string());
-		std::ranges::transform(filename, filename.begin(),
-			[](unsigned char c) { return std::tolower(c); });
+		lowercase(filename);
 		clearBreakpoints(filename);
 	}
 
@@ -1238,22 +1244,23 @@ void DebugReport::ReportError(const IErrorReport& report,
 			/* if not found, search for new client who wants to attach to
 			 * current file */
 			if (!found) {
-				for (auto& client : clients) {
-					for (int i = 0; i < report.Context()
+				for (int i = 0; i < report.Context()
+					->GetRuntime()
+					->GetDebugInfo()
+					->NumFiles();
+					i++) {
+					auto filename = std::string(report.Context()
 						->GetRuntime()
 						->GetDebugInfo()
-						->NumFiles();
-						i++) {
-						for (auto file : client->files) {
-							auto filename = report.Context()
-								->GetRuntime()
-								->GetDebugInfo()
-								->GetFileName(i);
-							if (file.find(filename) != std::string::npos ||
-								strcmpi(file.c_str(), filename) == 0) {
-								client->ReportError(report, iter);
-								break;
-							}
+						->GetFileName(i));
+
+					auto current_file = std::filesystem::path(filename).filename().string();
+					lowercase(current_file);
+
+					for (auto& client : clients) {
+						if (client->files.find(current_file) != client->files.end())
+						{
+							client->ReportError(report, iter);
 						}
 					}
 				}
@@ -1296,7 +1303,7 @@ void(DebugHandler)(SourcePawn::IPluginContext* IPlugin,
 				IPlugin->GetRuntime()->GetDebugInfo()->GetFileName(
 					i);
 			auto current_file = std::filesystem::path(filename).filename().string();
-			std::ranges::transform(current_file, current_file.begin(), [](unsigned char c) { return std::tolower(c); });
+			lowercase(current_file);
 
 			for (auto it = clients.begin(); it != clients.end(); ++it) {
 				const auto& client = *it;

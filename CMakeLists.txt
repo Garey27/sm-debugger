@@ -67,8 +67,8 @@ target_link_libraries(${OUTPUT_NAME}  PRIVATE ws2_32 legacy_stdio_definitions)
 endif()
 set_target_properties(${OUTPUT_NAME}
     PROPERTIES
-    CXX_STANDARD 20
-    CXX_EXTENSIONS OFF
+    CXX_STANDARD 17
+    CXX_EXTENSIONS ON
     )
     
 target_include_directories(${OUTPUT_NAME} PRIVATE ${BRYNET_INCLUDE_DIRS})
