@@ -17,7 +17,7 @@ jobs:
       run: |
             sudo add-apt-repository 'deb http://mirror.yandex.ru/ubuntu/ hirsute main universe' -y
             #sudo apt-get update
-            sudo apt-get --assume-yes install curl zip unzip tar pkg-config gcc-11-multilib g++-11-multilib
+            sudo apt-get --assume-yes install curl zip unzip tar pkg-config gcc-11-multilib g++-11-multilib ninja cmake
             sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 10
             sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 10
 
