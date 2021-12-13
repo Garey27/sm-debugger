@@ -21,6 +21,7 @@ set(SM_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dep/sourcemod")
 set(SP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dep/sourcemod/sourcepawn")
 
 include("cmake/sourcemod.cmake")
+include("cmake/cmake-version4git.cmake")
 
 find_package(ZLIB REQUIRED)
 find_package(fmt CONFIG REQUIRED)
@@ -60,6 +61,9 @@ target_link_libraries(${OUTPUT_NAME}  PRIVATE ZLIB::ZLIB fmt::fmt)
 
 if(MSVC)
 target_link_libraries(${OUTPUT_NAME}  PRIVATE ws2_32 legacy_stdio_definitions)
+
+
+
 endif()
 set_target_properties(${OUTPUT_NAME}
     PROPERTIES
