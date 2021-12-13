@@ -18,7 +18,8 @@ jobs:
     - name: Install vcpkg packets
       working-directory: ${{github.workspace}}
       run: |
-            apk add git libtool ninja linux-headers gcc g++ musl-dev patch cmake flex bison fts-dev p7zip bash
+            apk add --update alpine-sdk
+            apt-get --assume-yes install gcc-multilib g++-multilib p7zip-full libssl-dev curl zip unzip tar
             cp cmake/x86-linux-sm.cmake dep/vcpkg/triplets/x86-linux-sm.cmake
             ./dep/vcpkg/bootstrap-vcpkg.sh
             ./dep/vcpkg/vcpkg install --triplet x86-linux-sm
