@@ -22,15 +22,14 @@ set(SP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dep/sourcemod/sourcepawn")
 include("cmake/sourcemod.cmake")
 include("cmake/cmake-version4git.cmake")
 
-# Compiler specific jobs #
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message(FATAL_ERROR "Arch must be 32-bit")
-endif()
-
 find_package(ZLIB REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_path(BRYNET_INCLUDE_DIRS "brynet/Version.hpp")
 
+# Compiler specific jobs #
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(FATAL_ERROR "Arch must be 32-bit")
+endif()
 
 set(CPP_FILES 
 "src/sourcepawn/vm/smx-v1-image.cpp"
