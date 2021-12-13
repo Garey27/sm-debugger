@@ -5,6 +5,7 @@ on: [push, pull_request]
 jobs:
   build_linux:
     runs-on: ubuntu-latest
+    container: gcc:latest
     
     steps:
     - uses: actions/checkout@v2    
@@ -16,13 +17,8 @@ jobs:
       working-directory: ${{github.workspace}}
       run: |
             sudo apt-get update
-            sudo apt-get --assume-yes install curl zip unzip tar pkg-config
+            sudo apt-get --assume-yes install curl zip unzip tar pkg-config 
             
-    - name: Set up GCC
-      uses: egor-tensin/setup-gcc@v1
-      with:
-        version: 11
-        platform: x86
 
     - name: Install vcpkg packets
       working-directory: ${{github.workspace}}
