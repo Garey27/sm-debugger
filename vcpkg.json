@@ -6,7 +6,6 @@
     "nlohmann-json",
     "fmt",
     "brynet",
-    "gtest",
     "zlib"
   ]
 }
