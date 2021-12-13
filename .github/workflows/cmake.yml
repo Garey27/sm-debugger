@@ -16,7 +16,7 @@ jobs:
       working-directory: ${{github.workspace}}
       run: |
             sudo apt-get update
-            sudo apt-get --assume-yes install curl zip unzip tar
+            sudo apt-get --assume-yes install curl zip unzip tar pkg-config
 
     - name: Set up GCC
       uses: egor-tensin/setup-gcc@v1
