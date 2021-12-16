@@ -197,7 +197,7 @@ public:
 		// get the starting address and the length of the string
 		cell_t* addr;
 		cell_t base = sym->addr();
-		if (sym->vclass())
+		if (sym->vclass() == 1 || sym->vclass() == 3) // local var or arg but not static
 			base += frm_; // addresses of local vars are relative to the frame
 		if (sym->ident() == sp::IDENT_REFARRAY) {
 			context_->LocalToPhysAddr(base, &addr);
@@ -424,14 +424,21 @@ public:
 		if (rtti && rtti->type_id)
 		{
 			size_t base = rtti->address;
-			if (sym->vclass())
+			if (sym->vclass() == 1 || sym->vclass() == 3) // local var or arg but not static
 				base += frm_; // addresses of local vars are relative to the frame
 
-			auto json = read_variable(base, rtti->type_id, nullptr, sym->vclass() == 0x3);
-			if (!json.empty())
+			try
 			{
-				var.value = json.dump();
-				return var;
+				auto json = read_variable(base, rtti->type_id, nullptr, sym->vclass() == 0x3);
+				if (!json.empty())
+				{
+					var.value = json.dump();
+					return var;
+				}
+			}
+			catch(...)
+			{
+				// skip rtti parse
 			}
 		}
 		// first check whether the variable is visible at all
